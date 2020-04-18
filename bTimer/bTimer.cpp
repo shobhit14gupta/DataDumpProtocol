@@ -5,6 +5,8 @@
  *      Author: karsh
  */
 #include "bTimer.h"
+#include "../Logger/logger.h"
+
 
 using namespace std;
 
@@ -33,7 +35,7 @@ void* serviceTaskLoop(void* arg){
 
 
 	//log message
-//	std::cout<<"service run"<<std::endl;
+	debuglog<<"Type: "<<((instance->mode==0)?"ONESHOT":"PERIODIC")<<": service initiated";
 
 	//blocking call, so while(true) is not required here
 	if(ret){
@@ -41,7 +43,7 @@ void* serviceTaskLoop(void* arg){
 	}
 
 	//log message
-//	std::cout<<"service terminated"<<std::endl;
+	debuglog<<"Type: "<< ((instance->mode==0)?"ONESHOT":"PERIODIC")<<": service terminated";
 
 	//exit thread gracefully
 	pthread_exit(NULL);

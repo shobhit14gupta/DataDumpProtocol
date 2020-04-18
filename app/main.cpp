@@ -12,12 +12,13 @@
 #include "../dataDump/DDTest.h"
 #include <iostream>
 #include "../bTimer/btimerTest.h"
-
+#include "../Logger/logger.h"
 
 
 
 
 int main() {
+	init_logging();
 	//StopWatchTest();
 	//msTimerUnitTest();
 	DDTest();
