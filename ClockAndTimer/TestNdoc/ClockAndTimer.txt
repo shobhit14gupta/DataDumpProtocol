@@ -1,0 +1,54 @@
+
+//assign new name for namespace 
+namespace sw = stopwatch;
+
+
+//Create a stopwatch
+sw::Stopwatch my_watch;
+
+
+//Start stopwatch
+my_watch.start();
+
+
+//record lap
+my_watch.lap();
+
+
+//Get all recorded lap times
+auto laps = my_watch.elapsed_laps();
+
+//show all lap times
+auto lap_times = laps.second;
+sw::Stopwatch::show_times(lap_times);
+
+
+//get time elapsed in milliseconds (default no arg)
+//Return type is a pair of value
+// First value is Sum of all laps
+// second is vector which return time elapsed in each laps
+std::uint64_t elapsed_ms = my_watch.elapsed();
+
+
+
+//get time elapsed in nano seconds
+//Return type is a pair of value
+// First value is Sum of all laps
+// second is vector which return time elapsed in each laps
+std::uint64_t elapsed_ns = my_watch.elapsed<sw::nanoseconds>();
+
+
+
+//get time elapsed in micro seconds, 
+//Return type is a pair of value
+// First value is Sum of all laps
+// second is vector which return time elapsed in each laps
+std::uint64_t elapsed_mus = my_watch.elapsed<sw::microseconds>();
+
+
+
+//get time elapsed in seconds
+//Return type is a pair of value
+// First value is Sum of all laps
+// second is vector which return time elapsed in each laps
+std::uint64_t elapsed_s = my_watch.elapsed<sw::seconds>();
