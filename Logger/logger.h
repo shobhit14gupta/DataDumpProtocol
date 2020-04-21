@@ -19,11 +19,11 @@
 namespace logging = boost::log;
 namespace keywords = boost::log::keywords;
 
-#define tracelog BOOST_LOG_TRIVIAL(trace) << "func:"<<__func__
-#define debuglog BOOST_LOG_TRIVIAL(debug) << "func:"<< __func__
-#define infolog BOOST_LOG_TRIVIAL(info) << "func:"<<__func__
-#define warnlog BOOST_LOG_TRIVIAL(warning) << "func:"<< __func__
-#define errorlog BOOST_LOG_TRIVIAL(error) << "func:"<< __func__
+#define tracelog BOOST_LOG_TRIVIAL(trace) << "func:"<<__func__<<" [MSG] "
+#define debuglog BOOST_LOG_TRIVIAL(debug) << "func:"<< __func__<<" [MSG] "
+#define infolog BOOST_LOG_TRIVIAL(info) << "func:"<<__func__<<" [MSG] "
+#define warnlog BOOST_LOG_TRIVIAL(warning) << "func:"<< __func__<<" [MSG] "
+#define errorlog BOOST_LOG_TRIVIAL(error) << "func:"<< __func__<<" [MSG] "
 
 void init_logging();
 

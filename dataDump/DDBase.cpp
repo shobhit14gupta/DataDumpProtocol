@@ -5,6 +5,8 @@
  *      Author: karsh
  */
 #include "DDBase.h"
+#include "../Logger/logger.h"
+
 
 using namespace DD_PACKET;
 
@@ -51,7 +53,7 @@ DataDump::DataDump(mode_e type,string name,
 			serverConfig.setAckTimeout(ackTimeout);
 		}
 		//Create oneshot timer.
-		stateTransitionTimerHandle = new btimer(btimer::ONE_SHOT);
+		stateTransitionTimerHandle = new btimer(string(name+"ST"),btimer::ONE_SHOT);
 		if(stateTransitionTimerHandle==NULL){
 			throw EMU_ERR_OUT_OF_MEMORY;
 		}
@@ -100,11 +102,6 @@ bool DataDump::send(blockTxRxPacket& packet, uint8_t length) {
 		{
 			uint8_t* tempBuf =packet.getBuffer();
 			size_t tempSize = packet.getHeader().getDataBufferSize();
-			if(tempBuf!=NULL){
-				for(auto i=0;i<tempSize;i++){
-					printf("send:[%d]=%d",i,tempBuf[i]);
-				}
-			}
 		}
 
 
@@ -125,6 +122,7 @@ size_t DataDump::receive(TransactionPacket& packet,msgType_e msgType) {
 	size_t len =0;
 	uint8_t recvByteBuffer[maxPacketSize]={0};
 
+
 		if(this->recvCB!=NULL){
 			//receive data using recvCB. RecvCB is expected to be non-blocking call.
 			 len=recvCB(recvByteBuffer,maxPacketSize);
@@ -134,14 +132,14 @@ size_t DataDump::receive(TransactionPacket& packet,msgType_e msgType) {
 		if(len>0){
 			//check msg type of received message to be matching in arg
 			if(recvByteBuffer[0]!=(uint8_t)msgType){
-				cout<<"Wrong msgType"<<endl;
+				tracelog<<"DDBase:"<<this->name<<"Wrong msgType"<<endl;
 				return 0;
 			}
 
 			//serialize the packet and verify the CRC.
 			packet.deserialize(recvByteBuffer,len);
 			if(packet.getHeader().getCrc()!=CRC16::generate(recvByteBuffer[0],len)){
-				cout<<"Wrong crc"<<endl;
+				tracelog<<"DDBase:"<<this->name<<"Wrong crc"<<endl;
 				return 0;
 			}
 		}
@@ -202,33 +200,43 @@ bool DataDump::stopStateTransitionTimer() {
 
 
 void DataDump::setCurrentFSMState(fsm_state_e state){
-	cur_mutex.lock();
+	//===== Critical section <
+	std::lock_guard<std::mutex> lck (cur_mutex);
 	currentState = state;
-	cur_mutex.unlock();
+	//===== Critical section >
 }
 
 
 void DataDump::setNextFSMState(fsm_state_e state){
-	nxt_mutex.lock();
-	nextState = state;
-	nxt_mutex.unlock();
+	//===== Critical section <
+	{
+		std::lock_guard<std::mutex> lck (nxt_mutex);
+		nextState = state;
+	}
+	//===== Critical section >
 }
 
 
 DataDump::fsm_state_e DataDump::getCurrentFSMState(){
 	fsm_state_e temp;
-	cur_mutex.lock();
-	temp = currentState;
-	cur_mutex.unlock();
+	//===== Critical section <
+	{
+		std::lock_guard<std::mutex> lck (cur_mutex);
+		temp = currentState;
+	}
+	//===== Critical section >
 	return temp;
 }
 
 
 DataDump::fsm_state_e DataDump::getNextFSMState(){
 	fsm_state_e temp;
-	nxt_mutex.lock();
-	temp = nextState;
-	nxt_mutex.unlock();
+	//===== Critical section <
+	{
+		std::lock_guard<std::mutex> lck (nxt_mutex);
+		temp = nextState;
+	}
+	//===== Critical section >
 	return temp;
 }
 

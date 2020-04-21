@@ -8,11 +8,14 @@
 #ifndef BTIMER_H_
 #define BTIMER_H_
 
+#include <string>
+#include <string.h>
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <pthread.h>
 #include <mutex>
+
 
 class btimer{
 public:
@@ -22,19 +25,8 @@ public:
 		PERIODIC=1
 	}mode_e;
 
-public:
-	btimer(const btimer& ref) = delete;
-	btimer& operator=(const btimer& ref) = delete;
-
-	btimer(mode_e mode,cb_t callback=NULL,void* callback_arg=NULL);
-	~btimer();
-	bool start(uint64_t msInterval);
-	bool stop();
-	bool isExpired();
-	bool registerCB(cb_t callback,void* callback_arg);
-
-
 private:
+	std::string name;
 	mode_e mode;
 	boost::asio::deadline_timer* handle;
 	boost::asio::io_service* service;
@@ -44,6 +36,18 @@ private:
 	pthread_t threadID;
 	std::mutex resProtect;
 	bool timerExpiry;
+
+public:
+	btimer(const btimer& ref) = delete;
+	btimer& operator=(const btimer& ref) = delete;
+
+	btimer(std::string name,mode_e mode,cb_t callback=NULL,void* callback_arg=NULL);
+	~btimer();
+	bool start(uint64_t msInterval);
+	bool stop();
+	bool isExpired();
+	bool registerCB(cb_t callback,void* callback_arg);
+	const std::string& getName() const;
 
 private:
 	void setExpired(bool ind);

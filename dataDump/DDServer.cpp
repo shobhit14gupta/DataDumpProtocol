@@ -1,5 +1,6 @@
 
 #include "DDServer.h"
+#include "../Logger/logger.h"
 
 using namespace DD_PACKET;
 
@@ -34,7 +35,8 @@ void DDServer::FSMLoop() {
 		case fsm_state_e::IDLE:
 		{
 			//** IDLE: state logic **
-				//cout<<"Server: state: IDLE"<<endl;
+				tracelog<<"Server: state: IDLE"<<endl;
+
 				this->isTransferSuccess = false;
 				this->stopStateTransitionTimer();
 				this->clientConfig.setAckTimeout(0);
@@ -55,7 +57,7 @@ void DDServer::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::REQUEST:
 		{
-			cout<<"Server: state: REQUEST"<<endl;
+			tracelog<<"Server: state: REQUEST"<<endl;
 			bool stateRet = false;
 
 			//** REQUEST: state logic **
@@ -66,9 +68,13 @@ void DDServer::FSMLoop() {
 				 * Until non-zero bytes of REQUEST message type are received
 				 * or oneshotTimer expires.
 				 */
+				tracelog<<"Server: REQUEST: waiting for request"<<endl;
 				do{
 					recvLen = this->receive(request,msgType_e::REQUEST);
+					usleep(10);
 				}while((recvLen==0));
+
+				tracelog<<"Server: REQUEST: request received"<<endl;
 
 				if(recvLen!=0){
 					//Info: valid message is received with matching msgtype and crc ok.
@@ -79,6 +85,7 @@ void DDServer::FSMLoop() {
 					 * 3. MaxPacketLength
 					 * 4. TransactionID
 					 * */
+					tracelog<<"Server: REQUEST: Saving client configurations"<<endl;
 					this->clientConfig.setAckTimeout(request.getHeader().getAckTimeout());
 					this->clientConfig.setBlocksPerTransaction(request.getHeader().getBlocksPerTransaction());
 					this->clientConfig.setMaxPacketLength(request.getHeader().getMaxPacketLength());
@@ -101,7 +108,7 @@ void DDServer::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::RESPONSE:
 		{
-			cout<<"Server: state: RESPONSE"<<endl;
+			tracelog<<"Server: state: RESPONSE"<<endl;
 			bool stateRet = false;
 			TransactionPacket response;
 
@@ -147,10 +154,12 @@ void DDServer::FSMLoop() {
 			/* Read data from storage WITHOUT ERASING and store in it buffer
 			 * Data Transfer is only availed when data exists in storage.
 			 */
+
 			size_t maxStorageReadSizeReq = maxPacketSize - blockTxRxPacket::headerSize();
 			maxStorageReadSizeReq=maxStorageReadSizeReq * clientConfig.getBlocksPerTransaction();
 			if(consumerCB!=NULL && this->internalBuffer!=NULL){
 				internalBufferLen = consumerCB(internalBuffer,maxStorageReadSizeReq,false);
+				tracelog<<"Server: RESPONSE: "<< internalBufferLen<<"(Bytes) read to be dumped"<<endl;
 				if(internalBufferLen!=0){
 					stateRet = true;
 				}
@@ -159,9 +168,10 @@ void DDServer::FSMLoop() {
 
 			//send RESPONSE
 			if(stateRet){
+				tracelog<<"Server: RESPONSE: sending response packet"<<endl;
 				do{
 					stateRet = this->send(response,response.size());
-					usleep(100);
+					usleep(10);
 				}while((stateRet==false) && (this->stateTransitionTimerHandle->isExpired()==false));
 			}
 
@@ -178,7 +188,7 @@ void DDServer::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::INITIATE_BLOCK:
 		{
-			cout<<"Server: state: INITIATE_BLOCK"<<endl;
+			tracelog<<"Server: state: INITIATE_BLOCK"<<endl;
 			bool stateRet = false;
 
 
@@ -189,13 +199,16 @@ void DDServer::FSMLoop() {
 				/*receive until non- zero bytes of INITIATE BLOCK packet are received or
 				 * oneshot timer is expired.
 				 */
+				tracelog<<"Server: INITIATE_BLOCK: waiting for initiate packet"<<endl;
 				do{
 					recvLen= this->receive(initiate,msgType_e::INITIATE_BLOCK_TRANSFER);
+					usleep(10);
 				}while((recvLen==0) && (this->stateTransitionTimerHandle->isExpired()==false));
 
 				//Validate the INITIATE BLOCK received.
 				if(recvLen!=0){
 					if(clientConfig.getTransactionId() == initiate.getHeader().getTransactionId()){
+						tracelog<<"Server: INITIATE_BLOCK: received initiate packet, terms agreed"<<endl;
 						stateRet = true;
 					}
 				}
@@ -214,7 +227,7 @@ void DDServer::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::BLOCK:
 		{
-			cout<<"Server: state: BLOCK"<<endl;
+			tracelog<<"Server: state: BLOCK"<<endl;
 			bool stateRet = false;
 			//bool timerExpiration = false;
 
@@ -245,27 +258,25 @@ void DDServer::FSMLoop() {
 
 			blockDataPacket.generateCRC();
 
+			tracelog<<"Server: BLOCK: Sending Block packets: framecount Number="<<(int)_frameCnt_<<endl;
+
 			//send Initiate block transfer msg
+			stateRet = false;
 			do{
-				stateRet = this->send(blockDataPacket,blockDataPacket.size());
-				usleep(100);
-			}while((stateRet==false) && (this->stateTransitionTimerHandle->isExpired()==false));
+				if(stateRet==false){
+					stateRet = this->send(blockDataPacket,blockDataPacket.size());
+					tracelog<<"Server : BLOCK: "<<(int)_frameCnt_<<"sent"<<endl;
+				}
+				usleep(1);
+			}while(stateRet==false && this->stateTransitionTimerHandle->isExpired()==false);
 
-			//IMPORTANT UN-COMMENT IN MICROCONTROLLER
-			if(this->stateTransitionTimerHandle->isExpired()==false){
-				do{
-					usleep(100);
-				}while(this->stateTransitionTimerHandle->isExpired()==false);
-			}
 
-			cout<<"wait over"<<endl;
-			if(stateRet==true){
-				cout<<"Server : Block Packet: "<<(int)_frameCnt_<<"sent"<<endl;
+			if(stateRet){
 
 				//Check if this is last frame sent.
 				if(blockDataPacket.getHeader().getContinueBit()==continueBit_e::TERMINATE_TRANSFER){
 					//Info: Last frame is sent, so wait for ACK
-					cout<<"Server : Block Packet: "<<(int)_frameCnt_<<" Last Frame sent"<<endl;
+					tracelog<<"Server : BLOCK: "<<(int)_frameCnt_<<" all frames sent"<<endl;
 
 					//re-start state transition timer
 					//this->startStateTransitionTimer(clientConfig.getAckTimeout());
@@ -276,10 +287,12 @@ void DDServer::FSMLoop() {
 
 					do{
 						recvLen= this->receive(ACKPacket,msgType_e::BLOCK_ACK);
-						cout<< "waiting for ACK"<<endl;
+						tracelog<< "Server: BLOCK: waiting for ACK packet"<<endl;
+						usleep(10);
 					}while((recvLen==0) && (this->stateTransitionTimerHandle->isExpired()==false));
 
 					if(recvLen!=0){
+						tracelog<< "Server: BLOCK: ACK packet received"<<endl;
 						//Info: received ACKOK
 						//Check if storageReadCB is not NULL and Validate ACK packet based on trasaction ID.
 						//erase the data from storage application
@@ -298,11 +311,13 @@ void DDServer::FSMLoop() {
 				else{
 					//Info: This is not last frame, continue in this state
 					//start state transition timer and continue to be in this state
+					tracelog<< "Server: BLOCK: More packet to be sent"<<endl;
 					this->setNextFSMState(this->getCurrentFSMState());
 					this->startStateTransitionTimer(clientConfig.getAckTimeout());
 				}
 			}else{
 				//something went wrong, send failed, so terminate.
+				errorlog<< "Server: BLOCK: Something went wrong"<<endl;
 				this->setNextFSMState(fsm_state_e::TERMINATE);
 			}
 		}
@@ -311,12 +326,13 @@ void DDServer::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::TERMINATE:
 		{
-			cout<<"Server: state: TERMINATE"<<endl;
+			tracelog<<"Server: state: TERMINATE"<<endl;
 			//** Stop state transition timer **
 			this->stopStateTransitionTimer();
 
 			//** Notify application about transfer status **
 				if(this->notifyCB!=NULL){
+					tracelog<<"Server: TERMINATE: Notified application"<<endl;
 					if(isTransferSuccess){
 						notifyCB(true);
 					}else{
@@ -325,6 +341,7 @@ void DDServer::FSMLoop() {
 				}
 
 			//** cleanup **
+				tracelog<<"Server: TERMINATE: cleanup"<<endl;
 				this->isTransferSuccess = false;
 				this->stopStateTransitionTimer();
 				this->clientConfig.setAckTimeout(0);
@@ -342,6 +359,7 @@ void DDServer::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		default:
 		{
+			tracelog<<"Server: UNKNOWN STATE"<<endl;
 			this->setNextFSMState(fsm_state_e::TERMINATE);
 		}
 

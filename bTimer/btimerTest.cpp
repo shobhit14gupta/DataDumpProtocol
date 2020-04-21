@@ -18,7 +18,7 @@ void print2(void* arg){
 
 
 
-btimer t(btimer::mode_e::PERIODIC);
+btimer t("timer1",btimer::mode_e::PERIODIC);
 //btimer t2(btimer::mode_e::PERIODIC,print2,NULL);
 
 

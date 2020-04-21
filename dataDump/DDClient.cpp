@@ -5,6 +5,7 @@
  *      Author: karsh
  */
 #include "DDClient.h"
+#include "../Logger/logger.h"
 
 using namespace DD_PACKET;
 
@@ -17,17 +18,17 @@ void DDClientStateTimerCallback(void* arg)
 }
 
 
-/*
- * Client: update timer callback
- */
-void DDClientUpdateTimerCallback(void* arg)
-{
-	//cout<<"Client: periodic Timer expired"<<endl;
-	if(arg!=NULL){
-		DDClient* ddInstance = (DDClient*)arg;
-		ddInstance->FSMLoop();
-	}
-}
+///*
+// * Client: update timer callback
+// */
+//void DDClientUpdateTimerCallback(void* arg)
+//{
+//	//cout<<"Client: periodic Timer expired"<<endl;
+//	if(arg!=NULL){
+//		DDClient* ddInstance = (DDClient*)arg;
+//		ddInstance->FSMLoop();
+//	}
+//}
 
 
 //============ CLIENT ==================
@@ -49,7 +50,7 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::IDLE:
 		{
-			//cout<<"Client: state: IDLE"<<endl;
+			//tracelog<<"Client: state: IDLE"<<endl;
 
 			//** IDLE: state logic **
 
@@ -65,7 +66,7 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::REQUEST:
 		{
-			cout<<"Client: state: REQUEST"<<endl;
+			tracelog<<"Client: state: REQUEST"<<endl;
 			bool stateRet = true;
 
 			//** REQUEST: state logic **
@@ -101,10 +102,11 @@ void DDClient::FSMLoop() {
 
 					do{
 						stateRet = this->send(request,request.size());
-						usleep(100);
+						usleep(10);
 					}while((stateRet==false) && (this->stateTransitionTimerHandle->isExpired()==false));
 				}
 
+				tracelog<<"Client: REQUEST: Request sent"<<endl;
 			//** transition logic **
 				if(stateRet){
 					this->setNextFSMState(fsm_state_e::RESPONSE);
@@ -118,7 +120,7 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::RESPONSE:
 		{
-			cout<<"Client: state: RESPONSE"<<endl;
+			tracelog<<"Client: state: RESPONSE"<<endl;
 			bool stateRet = false;
 
 			//** state logic **
@@ -129,13 +131,16 @@ void DDClient::FSMLoop() {
 				 * Until non-zero bytes of RESPONSE message type are received
 				 * or oneshotTimer expires.
 				 */
-				cout<<"waiting for Response "<<endl;
+				tracelog<<"Client: RESPONSE: waiting for Response: ACKTimeout="<<(int)clientConfig.getAckTimeout() <<endl;
 				do{
+					tracelog<<"Client: RESPONSE: trying to receive"<<endl;
 					recvLen= this->receive(response,msgType_e::RESPONSE);
+					usleep(10);
 				}while((recvLen==0) && (this->stateTransitionTimerHandle->isExpired()==false));
 
-				cout<<"Response received"<<endl;
-				if(recvLen!=0){
+
+				if(recvLen>0){
+					tracelog<<"Client: RESPONSE: Response received"<<endl;
 					//Info: Valid RESPONSE message with matching msgtype and crc ok is received
 
 					//copy server configuration
@@ -143,6 +148,7 @@ void DDClient::FSMLoop() {
 					this->serverConfig.setBlocksPerTransaction(response.getHeader().getBlocksPerTransaction());
 					this->serverConfig.setMaxPacketLength(response.getHeader().getMaxPacketLength());
 					this->serverConfig.setTransactionId(response.getHeader().getTransactionId());
+					tracelog<<"Client: RESPONSE: server config received"<<endl;
 					stateRet = true;
 				}
 
@@ -160,7 +166,7 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::INITIATE_BLOCK:
 		{
-			cout<<"Client: state: INITIATE_BLOCK"<<endl;
+			tracelog<<"Client: RESPONSE: INITIATE_BLOCK"<<endl;
 			bool stateRet = false;
 			TransactionPacket initiate;
 
@@ -188,16 +194,15 @@ void DDClient::FSMLoop() {
 					initiate.getHeader().setTransactionId(this->serverConfig.getTransactionId());
 					initiate.generateCRC();
 				}
-				cout<<"client Initiate block prepared"<<endl;
 				//send Initiate block transfer msg
 				if(stateRet){
 					do{
 						stateRet = this->send(initiate,initiate.size());
-						usleep(100);
+						usleep(10);
 					}while((stateRet==false) && (this->stateTransitionTimerHandle->isExpired()==false));
 				}
 
-				cout<<"client Initiate block sent"<<endl;
+				tracelog<<"Client: INITIATE_BLOCK: Initiate block sent"<<endl;
 			//** transistion logic **
 				if(stateRet){
 					this->setNextFSMState(fsm_state_e::BLOCK);
@@ -211,7 +216,7 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::BLOCK:
 		{
-			cout<<"Client: state: BLOCK"<<endl;
+			tracelog<<"Client: state: BLOCK"<<endl;
 			bool stateRet = false;
 
 
@@ -224,21 +229,28 @@ void DDClient::FSMLoop() {
 				 */
 				do{
 					recvLen= this->receive(blockDataPacket,msgType_e::BLOCK_TRANSFER);
+					usleep(1);
 				}while((recvLen==0) && (this->stateTransitionTimerHandle->isExpired()==false));
 
+				if(recvLen==0 && (this->stateTransitionTimerHandle->isExpired()==true)){
+					tracelog<<"Client: BLOCK: Timer Expired, Nothing recved within timeout"<<endl;
+				}else if(recvLen==0 && (this->stateTransitionTimerHandle->isExpired()==false)){
+					warnlog<<"Client: BLOCK: should never come here"<<endl;
+				}
 
 				//copy this data to location pointed by client storage application
-				if(recvLen!=0){
-					cout<<"Client : Block Packet: "<<"Received"<<endl;
+				if(recvLen>0){
+					tracelog<<"Client : BLOCK: "<<"Packet Received"<<endl;
 					size_t receivedBlockDataSize = blockDataPacket.getHeader().getDataBufferSize();
 					uint8_t* receivedBlockBufferData = blockDataPacket.getBuffer();
 					if(internalBuffer!=NULL &&
 							receivedBlockBufferData!=NULL &&
 							internalBufferLen>=receivedBlockDataSize){
-						cout<<"Client : saved the Packet: "<<endl;
+						tracelog<<"Client : BLOCK: storing the Packet: "<<endl;
 						if(memcpy(internalBuffer,receivedBlockBufferData,receivedBlockDataSize)!=NULL){
 							internalBuffer += receivedBlockDataSize;
 							internalBufferLen -=receivedBlockDataSize;
+							tracelog<<"Client : BLOCK: Packet saved successfully: "<<endl;
 							stateRet = true;
 						}
 					}
@@ -249,7 +261,7 @@ void DDClient::FSMLoop() {
 					//check if this is last frame,
 					if(blockDataPacket.getHeader().getContinueBit()==continueBit_e::TERMINATE_TRANSFER){
 
-						cout<<"Client : last frame received: "<<endl;
+						tracelog<<"Client : BLOCK: last frame received: "<<endl;
 
 						//Info: this is last frame
 						TransactionPacket ackPacket;
@@ -260,9 +272,10 @@ void DDClient::FSMLoop() {
 						//start state transition timer
 						this->startStateTransitionTimer(this->serverConfig.getAckTimeout());
 
+						tracelog<<"Client : BLOCK: ACK sent: "<<endl;
 						do{
 							stateRet = this->send(ackPacket,ackPacket.size());
-							usleep(100);
+							usleep(10);
 						}while((stateRet==false) && (this->stateTransitionTimerHandle->isExpired()==false));
 
 						if(stateRet){
@@ -273,7 +286,7 @@ void DDClient::FSMLoop() {
 
 					}else{
 
-						cout<<"Client : receive more: "<<endl;
+						tracelog<<"Client : BLOCK: receive more: "<<endl;
 
 						//This is not last frame, the continue in this state
 						this->setNextFSMState(this->getCurrentFSMState());
@@ -281,6 +294,10 @@ void DDClient::FSMLoop() {
 					}
 				}else{
 					// something went wrong in block transfer, send BLOCKACKNOT msg to server. and terminate
+
+					errorlog<<"Client : BLOCK: something went wrong: "<<endl;
+
+					tracelog<<"Client : BLOCK: sending NOT_ACK: "<<endl;
 					TransactionPacket ackPacket;
 					ackPacket.getHeader().setTransactionId(this->serverConfig.getTransactionId());
 					ackPacket.getHeader().setMsgType(msgType_e::BLOCK_ACKNOT);
@@ -291,13 +308,13 @@ void DDClient::FSMLoop() {
 
 					do{
 						stateRet = this->send(ackPacket,ackPacket.size());
-						usleep(100);
+						usleep(10);
 					}while((stateRet==false) && (this->stateTransitionTimerHandle->isExpired()==false));
 
 					//Once BLOCK_ACKNOT is sent, goto terminate state
 					this->setNextFSMState(fsm_state_e::TERMINATE);
 
-					cout<<"Client : something went wrong: "<<endl;
+
 				}
 		}
 		break;
@@ -305,12 +322,14 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		case fsm_state_e::TERMINATE:
 		{
-			cout<<"Client: state: TERMINATE"<<endl;
+			tracelog<<"Client: state: TERMINATE"<<endl;
+
 			//** Stop state transition timer **
 			this->stopStateTransitionTimer();
 
 			//** Notify application about transfer status **
 				if(notifyCB!=NULL){
+					tracelog<<"Client: TERMINATE: Notifying application on transfer status"<<endl;
 					if(isTransferSuccess){
 						notifyCB(true);
 					}else{
@@ -319,6 +338,7 @@ void DDClient::FSMLoop() {
 				}
 
 			//** cleanup **
+				tracelog<<"Client: TERMINATE: Cleanup"<<endl;
 				this->isTransferSuccess = false;
 				this->serverConfig.setAckTimeout(0);
 				this->serverConfig.setBlocksPerTransaction(0);
@@ -335,6 +355,7 @@ void DDClient::FSMLoop() {
 		//-- . -- . -- . -- . -- . -- . --
 		default:
 		{
+			warnlog<<"Client: UNKNOWN STATE"<<endl;
 			this->setNextFSMState(fsm_state_e::TERMINATE);
 		}
 
