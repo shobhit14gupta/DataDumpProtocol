@@ -17,6 +17,8 @@
 #include "DDPacket.h"
 #include <mutex>
 #include <condition_variable>
+#include "boost/asio.hpp"
+#include <thread>
 
 
 using namespace std;
@@ -29,7 +31,7 @@ public:
 	using DD_receive_cb_t = std::function<size_t (uint8_t* arg,size_t maxLength)>;
 	using DD_consumer_cb_t = std::function<size_t(uint8_t* bufptr,size_t maxSize,bool eraseDataRead)>;
 	using DD_notify_cb_t = std::function<void(bool transferStatus)>;
-
+	typedef boost::asio::io_service timer_loop_t;
 
 	typedef enum{
 		SERVER=0,
@@ -81,11 +83,11 @@ private:
 	fsm_state_e currentState;
 	fsm_state_e nextState;
 
-	mutex cur_mutex;
-	mutex nxt_mutex;
+	timed_mutex cur_mutex;
+	timed_mutex nxt_mutex;
 
 public:
-	DataDump(mode_e type,string name,
+	DataDump(mode_e type,string name,timer_loop_t& timer_loop,
 			DD_send_cb_t sendcb,DD_receive_cb_t recvcb,DD_PACKET::transactionID_t transactionID,
 			DD_PACKET::blocksPerTransaction_t blocksPerTransaction,
 			DD_PACKET::maxPacketLen_t maxPacketlen,
@@ -132,11 +134,11 @@ public:
 	 */
 	bool stopFSMTimer();
 
-	void setCurrentFSMState(fsm_state_e state);
-	void setNextFSMState(fsm_state_e state);
+	void setCurrentFSMState(fsm_state_e state) noexcept;
+	void setNextFSMState(fsm_state_e state) noexcept;
 
-	fsm_state_e getCurrentFSMState();
-	fsm_state_e getNextFSMState();
+	fsm_state_e getCurrentFSMState() noexcept;
+	fsm_state_e getNextFSMState() noexcept;
 
 	bool isModuleBusy() const;
 	void setModuleStatus(bool Status);

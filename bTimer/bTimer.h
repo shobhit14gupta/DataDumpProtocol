@@ -13,9 +13,9 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
-#include <pthread.h>
 #include <mutex>
-
+#include<thread>
+#include <chrono>
 
 class btimer{
 public:
@@ -29,32 +29,30 @@ private:
 	std::string name;
 	mode_e mode;
 	boost::asio::deadline_timer* handle;
-	boost::asio::io_service* service;
+	boost::asio::io_service service;
 	uint64_t duration;//changing
 	cb_t notifyCB;
 	void* notifyCBarg;
 	pthread_t threadID;
-	std::mutex resProtect;
+	std::timed_mutex resProtect;
 	bool timerExpiry;
 
 public:
 	btimer(const btimer& ref) = delete;
 	btimer& operator=(const btimer& ref) = delete;
 
-	btimer(std::string name,mode_e mode,cb_t callback=NULL,void* callback_arg=NULL);
+	btimer(std::string name,boost::asio::io_service& service,mode_e mode,cb_t callback=NULL,void* callback_arg=NULL);
 	~btimer();
-	bool start(uint64_t msInterval);
-	bool stop();
-	bool isExpired();
-	bool registerCB(cb_t callback,void* callback_arg);
+	bool start(uint64_t msInterval) noexcept;
+	bool stop() noexcept;
+	bool isExpired() noexcept;
+	bool registerCB(cb_t callback,void* callback_arg) noexcept;
 	const std::string& getName() const;
 
 private:
-	void setExpired(bool ind);
-	bool restart();
-
+	bool restart() noexcept;
 	friend void* serviceTaskLoop(void* arg);
-	friend void timeoutCB(btimer* arg);
+	friend void timeoutCB(btimer* arg) noexcept;
 
 };
 

@@ -7,7 +7,8 @@
 
 
 #include "DDTest.h"
-#include <pthread.h>
+//#include <pthread.h>
+#include <thread>
 #include <semaphore.h>
 #include "vector"
 #include "queue"
@@ -223,11 +224,13 @@ void clientNotify(bool transferStatus){
 
 
 //=================================================================
-DDServer test_server("Server1",serverSend,serverReceive,0x0000,35,20,250,serverStorageReadcb,serverNotify);
-DDClient test_client("Client1",clientSend,clientReceive,0x1234,35,20,250,NULL,clientNotify);
+boost::asio::io_service timer_event_loop_server;
+boost::asio::io_service timer_event_loop_client;
+DDServer test_server("Server1",timer_event_loop_server,serverSend,serverReceive,0x0000,35,20,5,serverStorageReadcb,serverNotify);
+DDClient test_client("Client1",timer_event_loop_client,clientSend,clientReceive,0x1234,35,20,5,NULL,clientNotify);
 
 
-void* serverTaskloop(void* arg){
+void* serverTaskloop(){
 	while(1){
 	test_server.FSMLoop();
 	usleep(100);
@@ -236,7 +239,7 @@ void* serverTaskloop(void* arg){
 }
 
 
-void* clientTaskloop(void* arg){
+void* clientTaskloop(){
 	while(1){
 	test_client.FSMLoop();
 	usleep(100);
@@ -244,44 +247,94 @@ void* clientTaskloop(void* arg){
 	return NULL;
 }
 
+
+void serverTimerLoop(){
+	tracelog<< "Serverloop: Started OK"<<endl;
+	timer_event_loop_server.run();
+	tracelog<< "Serverloop: ended"<<endl;
+}
+
+void clientTimerLoop(){
+	tracelog<< "Clientloop: Started OK"<<endl;
+	timer_event_loop_client.run();
+	tracelog<< "Clientloop: ended"<<endl;
+}
+
 //================================================
 pthread_t serverThread;
 pthread_t clientThread;
 
+//Create io_service for timers
+
 
 void DDTest(){
 //	DDTXRXTest();
-	//fill storage buffer with data.
-	for(uint16_t i=0;i<TRANSFER_SIZE;i++){
-		serverStorage[i]=i;
-	}
 
-	pthread_create(&serverThread,NULL,serverTaskloop,NULL);
-	pthread_create(&clientThread,NULL,clientTaskloop,NULL);
+	bool ret = true;
 
-	if(test_server.startServer()==false){
-		warnlog<<"Server: Fail to start"<<endl;
-	}
+	boost::asio::io_service::work workServer(timer_event_loop_server);
+	boost::asio::io_service::work workClient(timer_event_loop_client);
 
-	tracelog<< "Server: Started OK"<<endl;
+	//Create server timer loop
+	thread serverTimerThread(serverTimerLoop);
 
-	do{
-		if(startNextTransfer){
-			infolog<<"===================="<<"transaction counter"<<TransactionCount<<"==========================================="<<endl;
+	//create client timer loop
+	thread clientTimerThread(clientTimerLoop);
 
-			if(test_client.startNewTransfer(clientStorage,TRANSFER_SIZE)==true){
-				TransactionCount++;
-				startNextTransfer= false;
-			}else{
-				warnlog<< "Client: Busy Can't start now"<<endl;
-			}
+	//Create server FSM Thread
+	thread serverFSMThread(serverTaskloop);
+
+	//Create client FSM Thread
+	thread clientFSMThread(clientTaskloop);
+
+
+	if(ret){
+		//fill storage buffer with data.
+		for(uint16_t i=0;i<TRANSFER_SIZE;i++){
+			serverStorage[i]=i;
 		}
-		sleep(10);
-	}while(TransactionCount<10);
+	}
 
-	tracelog<< "Client: Started OK"<<endl;
 
-	pthread_join(serverThread,NULL);
+	if(ret)	{
+		if(test_server.startServer()==false){
+			warnlog<<"Server: Fail to start"<<endl;
+			ret = false;
+		}else{
+			tracelog<< "Server: Started OK"<<endl;
+		}
+	}
+
+
+	if(ret){
+		do{
+			if(startNextTransfer){
+				infolog<<"===================="<<"transaction counter"<<TransactionCount<<"==========================================="<<endl;
+
+				if(test_client.startNewTransfer(clientStorage,TRANSFER_SIZE)==true){
+					tracelog<< "Client: Started OK"<<endl;
+					TransactionCount++;
+					startNextTransfer= false;
+				}else{
+					warnlog<< "Client: Busy Can't start now"<<endl;
+				}
+			}
+			sleep(10);
+		}while(TransactionCount<10);
+	}
+
+
+
+	tracelog<< "MAIN: Kill thread"<<endl;
+	serverFSMThread.~thread();
+	clientFSMThread.~thread();
+
+	tracelog<< "MAIN: waiting for joining thread"<<endl;
+	serverFSMThread.join();
+	clientFSMThread.join();
+	tracelog<< "MAIN: Exiting"<<endl;
+
+	return ;
 }
 
 

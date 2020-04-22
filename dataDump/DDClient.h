@@ -14,7 +14,7 @@ private:
 
 
 public:
-	DDClient(string name, DD_send_cb_t sendcb,DD_receive_cb_t recvcb,
+	DDClient(string name, timer_loop_t& timerloop,DD_send_cb_t sendcb,DD_receive_cb_t recvcb,
 			DD_PACKET::transactionID_t transactionID,
 			DD_PACKET::blocksPerTransaction_t blocksPerTransaction,
 			DD_PACKET::maxPacketLen_t maxPacketlen,	DD_PACKET::ACKTimeout_t ackTimeout,
@@ -23,8 +23,8 @@ public:
 	void FSMLoop();
 	bool startNewTransfer(uint8_t* buffer,size_t size);
 
-	friend void DDClientStateTimerCallback(void* arg);
-	friend void DDClientUpdateTimerCallback(void* arg);
+	//friend void DDClientStateTimerCallback(void* arg);
+	//friend void DDClientUpdateTimerCallback(void* arg);
 
 };
 

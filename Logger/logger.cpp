@@ -23,7 +23,7 @@ void init_logging()
     // Output message to file
     logging::add_file_log
     (
-        keywords::file_name = "debugInfo.txt",
+        keywords::file_name = "debugLog.txt",
         keywords::format = "[%TimeStamp%] [%ThreadID%] [%Severity%] %Message%"
     );
 

@@ -9,6 +9,7 @@
 #include "string.h"
 #include <iostream>
 #include "../ErrorHandler/errorHandler.h"
+#include "../Logger/logger.h"
 
 using namespace DD_PACKET;
 
@@ -16,8 +17,8 @@ using namespace DD_PACKET;
  *
  */
 TranscationHeader::TranscationHeader()
-:msgType(msgType_e::UNASSIGNED),transactionID(0),blocksPerTransaction(0),maxPacketlen(0),
-ackTimeout(0),crc(0),dataBufferSize(0)
+:msgType(msgType_e::UNASSIGNED),transactionID(0),maxBlocksPerTransaction(0),maxPacketlen(0),
+maxACKTimeout(0),crc(0),dataBufferSize(0)
 {
 
 }
@@ -30,31 +31,30 @@ TranscationHeader::TranscationHeader(msgType_e msgType, transactionID_t transact
 		crc_t crc, dataBufferSize_t dataBufferSize,blocksPerTransaction_t blocksPerTransaction,
 		maxPacketLen_t maxSizeofBlock, ACKTimeout_t ACKTimeout)
 :msgType(msgType),transactionID(transactionID),maxPacketlen(maxSizeofBlock),
- ackTimeout(ACKTimeout),crc(crc),dataBufferSize(dataBufferSize)
+ maxACKTimeout(ACKTimeout),crc(crc),dataBufferSize(dataBufferSize)
 {
-	if (blocksPerTransaction >= minBlockPerTrasactionLimit
-			&& blocksPerTransaction <= maxBlockPerTrasactionLimit) {
-		this->blocksPerTransaction = blocksPerTransaction;
+	try{
+		if (blocksPerTransaction >= minBlockPerTrasactionLimit
+				&& blocksPerTransaction <= maxBlockPerTrasactionLimit) {
+			this->maxBlocksPerTransaction = blocksPerTransaction;
+		}
+		else {
+			this->maxBlocksPerTransaction = 0; //zero block per transaction means invalid header
+		}
 	}
-	else {
-		this->blocksPerTransaction = 0; //zero block per transaction means invalid header
+	catch(std::exception& e){
+			errorlog<<e.what()<<endl;
+	}
+	catch(emu_err_t& e){
+		exceptlog;
+		errorlog<<endl;
+		return ;
 	}
 }
 
 
 
-/*
- *
- */
-TranscationHeader::TranscationHeader(const TranscationHeader& packet) {
-	this->msgType = packet.msgType;
-	this->transactionID = packet.transactionID;
-	this->blocksPerTransaction = packet.blocksPerTransaction;
-	this->maxPacketlen = packet.maxPacketlen;
-	this->ackTimeout = packet.ackTimeout;
-	this->crc = packet.crc;
-	this->dataBufferSize = packet.dataBufferSize;
-}
+
 
 
 /*
@@ -68,7 +68,7 @@ TranscationHeader::~TranscationHeader() {
  *
  */
 ACKTimeout_t TranscationHeader::getAckTimeout() const {
-	return ackTimeout;
+	return maxACKTimeout;
 }
 
 
@@ -76,14 +76,14 @@ ACKTimeout_t TranscationHeader::getAckTimeout() const {
  *
  */
 blocksPerTransaction_t TranscationHeader::getBlocksPerTransaction() const {
-	return blocksPerTransaction;
+	return maxBlocksPerTransaction;
 }
 
 
 /*
  *
  */
-maxPacketLen_t TranscationHeader::getMaxPacketLength() const {
+maxPacketLen_t TranscationHeader::getPacketLength() const {
 	return maxPacketlen;
 }
 
@@ -114,7 +114,7 @@ crc_t TranscationHeader::getCrc() const {
  *
  */
 void TranscationHeader::setAckTimeout(ACKTimeout_t ackTimeout) {
-	this->ackTimeout = ackTimeout;
+	this->maxACKTimeout = ackTimeout;
 }
 
 
@@ -123,7 +123,7 @@ void TranscationHeader::setAckTimeout(ACKTimeout_t ackTimeout) {
  */
 void TranscationHeader::setBlocksPerTransaction(
 		blocksPerTransaction_t blocksPerTransaction) {
-	this->blocksPerTransaction = blocksPerTransaction;
+	this->maxBlocksPerTransaction = blocksPerTransaction;
 }
 
 
@@ -157,22 +157,6 @@ dataBufferSize_t TranscationHeader::getDataBufferSize() const {
 	return dataBufferSize;
 }
 
-/*
- *
- */
-TranscationHeader& TranscationHeader::operator =(
-		const TranscationHeader &header) {
-	if(this != &header){
-		this->msgType = header.msgType;
-		this->transactionID = header.transactionID;
-		this->blocksPerTransaction = header.blocksPerTransaction;
-		this->maxPacketlen = header.maxPacketlen;
-		this->ackTimeout = header.ackTimeout;
-		this->crc = header.crc;
-		this->dataBufferSize = header.dataBufferSize;
-	}
-	return *this;
-}
 
 /*
  *
@@ -191,7 +175,7 @@ void TranscationHeader::setTransactionId(transactionID_t transactionId) {
 
 
 //ByteArray to type conversion
-bool TranscationHeader::bytes2MsgType(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::bytes_to_MsgType(const uint8_t* ptr,size_t len) {
 	if(len>=sizeof(msgType_t) && ptr!=NULL){
 		switch(ptr[0]){
 		case REQUEST:
@@ -223,7 +207,7 @@ bool TranscationHeader::bytes2MsgType(const uint8_t* ptr,size_t len) {
 }
 
 
-bool TranscationHeader::bytes2TransactionId(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::bytes_to_TransactionId(const uint8_t* ptr,size_t len) {
 
 
 	transactionID_t ret=0;
@@ -239,7 +223,7 @@ bool TranscationHeader::bytes2TransactionId(const uint8_t* ptr,size_t len) {
 	return false;
 }
 
-bool TranscationHeader::byte2BlockPerTransaction(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::byte_to_BlockPerTransaction(const uint8_t* ptr,size_t len) {
 
 	blocksPerTransaction_t ret=0;
 	if(len>=sizeof(blocksPerTransaction_t) && ptr!=NULL){
@@ -247,13 +231,13 @@ bool TranscationHeader::byte2BlockPerTransaction(const uint8_t* ptr,size_t len) 
 			blocksPerTransaction_t byteCopier=ptr[i];
 			ret |= byteCopier<<(i*8);
 		}
-		this->blocksPerTransaction = ret;
+		this->maxBlocksPerTransaction = ret;
 		return true;
 	}
 	return false;
 }
 
-bool TranscationHeader::byte2MaxSizeOfBlock(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::byte_to_MaxSizeOfBlock(const uint8_t* ptr,size_t len) {
 
 	maxPacketLen_t ret=0;
 	if(len>=sizeof(maxPacketLen_t) && ptr!=NULL){
@@ -267,7 +251,7 @@ bool TranscationHeader::byte2MaxSizeOfBlock(const uint8_t* ptr,size_t len) {
 	return false;
 }
 
-bool TranscationHeader::byte2ACKTimeout(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::byte_to_ACKTimeout(const uint8_t* ptr,size_t len) {
 
 	ACKTimeout_t ret=0;
 	if(len>=sizeof(ACKTimeout_t) && ptr!=NULL){
@@ -275,13 +259,13 @@ bool TranscationHeader::byte2ACKTimeout(const uint8_t* ptr,size_t len) {
 			ACKTimeout_t byteCopier=ptr[i];
 			ret |= byteCopier<<(i*8);
 		}
-		this->ackTimeout = ret;
+		this->maxACKTimeout = ret;
 		return true;
 	}
 	return false;
 }
 
-bool TranscationHeader::byte2CRC(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::byte_to_CRC(const uint8_t* ptr,size_t len) {
 
 	crc_t ret=0;
 	if(len>=sizeof(crc_t) && ptr!=NULL){
@@ -296,7 +280,7 @@ bool TranscationHeader::byte2CRC(const uint8_t* ptr,size_t len) {
 	return false;
 }
 
-bool TranscationHeader::byte2DataBufferSize(const uint8_t* ptr,size_t len) {
+bool TranscationHeader::byte_to_DataBufferSize(const uint8_t* ptr,size_t len) {
 
 	dataBufferSize_t ret=0;
 	if(len>=sizeof(dataBufferSize_t) && ptr!=NULL){
@@ -312,7 +296,7 @@ bool TranscationHeader::byte2DataBufferSize(const uint8_t* ptr,size_t len) {
 
 
 //type to byteArray conversion
-bool TranscationHeader::msgType2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::msgType_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(msgType_t) && ptr!=NULL){
 		switch(this->msgType){
@@ -343,7 +327,7 @@ bool TranscationHeader::msgType2Bytes(uint8_t* ptr,size_t len){
 	return false;
 }
 
-bool TranscationHeader::TransactionId2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::transactionID_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(transactionID_t) && ptr!=NULL){
 		for(uint8_t i=0;i<sizeof(transactionID_t);i++){
@@ -359,13 +343,13 @@ bool TranscationHeader::TransactionId2Bytes(uint8_t* ptr,size_t len){
 }
 
 
-bool TranscationHeader::BlockPerTransaction2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::blockPerTransaction_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(blocksPerTransaction_t) && ptr!=NULL){
 		for(uint8_t i=0;i<sizeof(blocksPerTransaction_t);i++){
 			blocksPerTransaction_t byteCopier=255;
 			byteCopier = byteCopier<<(i*8);
-			buf[i] = (this->blocksPerTransaction & byteCopier)>>(i*8);
+			buf[i] = (this->maxBlocksPerTransaction & byteCopier)>>(i*8);
 		}
 		return true;
 	}
@@ -373,7 +357,7 @@ bool TranscationHeader::BlockPerTransaction2Bytes(uint8_t* ptr,size_t len){
 }
 
 
-bool TranscationHeader::MaxSizeOfBlock2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::maxSizeOfBlock_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(maxPacketLen_t) && ptr!=NULL){
 		for(uint8_t i=0;i<sizeof(maxPacketLen_t);i++){
@@ -387,13 +371,13 @@ bool TranscationHeader::MaxSizeOfBlock2Bytes(uint8_t* ptr,size_t len){
 }
 
 
-bool TranscationHeader::ACKTimeout2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::ackTimeout_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(ACKTimeout_t) && ptr!=NULL){
 		for(uint8_t i=0;i<sizeof(ACKTimeout_t);i++){
 			ACKTimeout_t byteCopier=255;
 			byteCopier = byteCopier<<(i*8);
-			buf[i] = (this->ackTimeout & byteCopier)>>(i*8);
+			buf[i] = (this->maxACKTimeout & byteCopier)>>(i*8);
 		}
 		return true;
 	}
@@ -401,7 +385,7 @@ bool TranscationHeader::ACKTimeout2Bytes(uint8_t* ptr,size_t len){
 }
 
 
-bool TranscationHeader::CRC2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::crc_to_Bytes(uint8_t* ptr,size_t len){
 
 	uint8_t* buf = ptr;
 	if(len>=sizeof(crc_t) && ptr!=NULL){
@@ -416,7 +400,7 @@ bool TranscationHeader::CRC2Bytes(uint8_t* ptr,size_t len){
 }
 
 
-bool TranscationHeader::DataBufferSize2Bytes(uint8_t* ptr,size_t len){
+bool TranscationHeader::dataBufferSize_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(dataBufferSize_t) && ptr!=NULL){
 		for(uint8_t i=0;i<sizeof(dataBufferSize_t);i++){
@@ -434,7 +418,7 @@ void TranscationHeader::printAll() {
 	std::cout<< "{msgType} "<<this->getMsgType()<<std::endl;
 	std::cout<< "{transactionID} "<<this->getTransactionId()<<std::endl;
 	std::cout<< "{blocksPerTransaction} "<<this->getBlocksPerTransaction()<<std::endl;
-	std::cout<< "{maxSizeofBlock} "<<this->getMaxPacketLength()<<std::endl;
+	std::cout<< "{maxSizeofBlock} "<<this->getPacketLength()<<std::endl;
 	std::cout<< "{ACKTimeout} "<<this->getAckTimeout()<<std::endl;
 	std::cout<< "{crc} "<<this->getCrc()<<std::endl;
 	std::cout<< "{bufferSize} "<<this->getDataBufferSize()<<std::endl;
@@ -451,12 +435,12 @@ blockHeader::blockHeader(msgType_e msgType,frameNumber_t frameNumber,continueBit
 	this->blockMetadata = (continueBit<<msbPos)| frameNumber;
 }
 
-blockHeader::blockHeader(const blockHeader& blockHeader){
-	this->msgType = blockHeader.msgType;
-	this->blockMetadata = blockHeader.blockMetadata;
-	this->crc = blockHeader.crc;
-	this->dataBufferSize=blockHeader.dataBufferSize;
-}
+//blockHeader::blockHeader(const blockHeader& blockHeader){
+//	this->msgType = blockHeader.msgType;
+//	this->blockMetadata = blockHeader.blockMetadata;
+//	this->crc = blockHeader.crc;
+//	this->dataBufferSize=blockHeader.dataBufferSize;
+//}
 
 blockHeader::~blockHeader(){}
 
@@ -512,15 +496,15 @@ dataBufferSize_t blockHeader::getDataBufferSize() const {
 	return dataBufferSize;
 }
 
-blockHeader& blockHeader::operator =(const blockHeader &blockHeader) {
-	if(this!=&blockHeader){
-		this->msgType = blockHeader.msgType;
-		this->blockMetadata = blockHeader.blockMetadata;
-		this->crc = blockHeader.crc;
-		this->dataBufferSize=blockHeader.dataBufferSize;
-	}
-	return *this;
-}
+//blockHeader& blockHeader::operator =(const blockHeader &blockHeader) {
+//	if(this!=&blockHeader){
+//		this->msgType = blockHeader.msgType;
+//		this->blockMetadata = blockHeader.blockMetadata;
+//		this->crc = blockHeader.crc;
+//		this->dataBufferSize=blockHeader.dataBufferSize;
+//	}
+//	return *this;
+//}
 
 void blockHeader::setDataBufferSize(dataBufferSize_t dataBufferSize) {
 	this->dataBufferSize = dataBufferSize;
@@ -540,7 +524,7 @@ void DD_PACKET::blockHeader::setBlockMetadata(blockMetaData_t blockMetadata) {
 
 
 //ByteArray to type conversion
-bool blockHeader::bytes2MsgType(const uint8_t* ptr,size_t len) {
+bool blockHeader::bytes_to_MsgType(const uint8_t* ptr,size_t len) {
 	if(len>=sizeof(msgType_t) && ptr!=NULL){
 		switch(ptr[0]){
 		case REQUEST:
@@ -571,7 +555,7 @@ bool blockHeader::bytes2MsgType(const uint8_t* ptr,size_t len) {
 }
 
 
-bool blockHeader::bytes2BlockMetadata(const uint8_t* ptr,size_t len) {
+bool blockHeader::bytes_to_BlockMetadata(const uint8_t* ptr,size_t len) {
 
 	blockMetaData_t ret=0;
 	if(len>=sizeof(blockMetaData_t) && ptr!=NULL){
@@ -586,7 +570,7 @@ bool blockHeader::bytes2BlockMetadata(const uint8_t* ptr,size_t len) {
 }
 
 
-bool blockHeader::bytes2CRC(const uint8_t* ptr,size_t len) {
+bool blockHeader::bytes_to_CRC(const uint8_t* ptr,size_t len) {
 
 	crc_t ret=0;
 	if(len>=sizeof(crc_t) && ptr!=NULL){
@@ -600,7 +584,7 @@ bool blockHeader::bytes2CRC(const uint8_t* ptr,size_t len) {
 	return false;
 }
 
-bool blockHeader::Bytes2DataBufferSize(const uint8_t* ptr,size_t len) {
+bool blockHeader::Bytes_to_DataBufferSize(const uint8_t* ptr,size_t len) {
 
 	dataBufferSize_t ret=0;
 	if(len>=sizeof(dataBufferSize_t) && ptr!=NULL){
@@ -618,7 +602,7 @@ bool blockHeader::Bytes2DataBufferSize(const uint8_t* ptr,size_t len) {
 
 
 //type to byteArray conversion
-bool blockHeader::msgType2Bytes(uint8_t* ptr,size_t len){
+bool blockHeader::msgType_to_Bytes(uint8_t* ptr,size_t len){
 	uint8_t* buf = ptr;
 	if(len>=sizeof(msgType_t) && ptr!=NULL){
 		switch(this->msgType){
@@ -649,7 +633,7 @@ bool blockHeader::msgType2Bytes(uint8_t* ptr,size_t len){
 	return false;
 }
 
-bool blockHeader::blockMetaData2Bytes(uint8_t* ptr,size_t len){
+bool blockHeader::blockMetaData_to_Bytes(uint8_t* ptr,size_t len){
 
 	uint8_t* buf = ptr;
 	if(len>=sizeof(blockMetaData_t) && ptr!=NULL){
@@ -663,7 +647,7 @@ bool blockHeader::blockMetaData2Bytes(uint8_t* ptr,size_t len){
 	return false;
 }
 
-bool blockHeader::CRC2Bytes(uint8_t* ptr,size_t len){
+bool blockHeader::crc_to_Bytes(uint8_t* ptr,size_t len){
 
 	uint8_t* buf = ptr;
 	if(len>=sizeof(crc_t) && ptr!=NULL){
@@ -678,7 +662,7 @@ bool blockHeader::CRC2Bytes(uint8_t* ptr,size_t len){
 }
 
 
-bool blockHeader::DataBufferSize2Bytes(uint8_t* ptr,size_t len){
+bool blockHeader::DataBufferSize_to_Bytes(uint8_t* ptr,size_t len){
 
 	uint8_t* buf = ptr;
 	if(len>=sizeof(dataBufferSize_t) && ptr!=NULL){
@@ -776,10 +760,6 @@ TranscationHeader& TransactionPacket::getHeader() {
 	return header;
 }
 
-void TransactionPacket::setHeader(const TranscationHeader &header) {
-	this->header = header;
-}
-
 void TransactionPacket::setHeader(msgType_e msgType,transactionID_t transactionID,crc_t crc,dataBufferSize_t dataBufferSize,
 		blocksPerTransaction_t blocksPerTransaction,maxPacketLen_t maxSizeofBlock,ACKTimeout_t ACKTimeout) {
 	this->header.setMsgType(msgType);
@@ -815,25 +795,25 @@ bool DD_PACKET::TransactionPacket::deserialize(
 	if(ptr!=NULL){
 		uint8_t* buffer = ptr;
 
-		this->header.bytes2MsgType(buffer,sizeof(msgType_t));
+		this->header.bytes_to_MsgType(buffer,sizeof(msgType_t));
 		buffer+=sizeof(msgType_t);
 
-		this->header.bytes2TransactionId(buffer,sizeof(transactionID_t));
+		this->header.bytes_to_TransactionId(buffer,sizeof(transactionID_t));
 		buffer+=sizeof(transactionID_t);
 
-		this->header.byte2BlockPerTransaction(buffer,sizeof(blocksPerTransaction_t));
+		this->header.byte_to_BlockPerTransaction(buffer,sizeof(blocksPerTransaction_t));
 		buffer+=sizeof(blocksPerTransaction_t);
 
-		this->header.byte2MaxSizeOfBlock(buffer,sizeof(maxPacketLen_t));
+		this->header.byte_to_MaxSizeOfBlock(buffer,sizeof(maxPacketLen_t));
 		buffer+=sizeof(maxPacketLen_t);
 
-		this->header.byte2ACKTimeout(buffer,sizeof(ACKTimeout_t));
+		this->header.byte_to_ACKTimeout(buffer,sizeof(ACKTimeout_t));
 		buffer+=sizeof(ACKTimeout_t);
 
-		this->header.byte2CRC(buffer,sizeof(crc_t));
+		this->header.byte_to_CRC(buffer,sizeof(crc_t));
 		buffer+=sizeof(crc_t);
 
-		this->header.byte2DataBufferSize(buffer,sizeof(dataBufferSize_t));
+		this->header.byte_to_DataBufferSize(buffer,sizeof(dataBufferSize_t));
 		buffer+=sizeof(dataBufferSize_t);
 
 		size_t bufferSize = (size_t)this->header.getDataBufferSize();
@@ -849,36 +829,36 @@ size_t DD_PACKET::TransactionPacket::serialize(uint8_t *ptr, size_t len) {
 		uint8_t* buffer = ptr;
 
 
-		size_t payloadSize = this->size();
+		size_t payloadSize = this->getPacketSize();
 		if(len<payloadSize ){
 			return 0;
 		}
 
-		if(this->header.msgType2Bytes(buffer,sizeof(msgType_t))==false)
+		if(this->header.msgType_to_Bytes(buffer,sizeof(msgType_t))==false)
 			return 0;
 		buffer+=sizeof(msgType_t);
 
-		if(this->header.TransactionId2Bytes(buffer,sizeof(transactionID_t))==false)
+		if(this->header.transactionID_to_Bytes(buffer,sizeof(transactionID_t))==false)
 			return 0;
 		buffer+=sizeof(transactionID_t);
 
-		if(this->header.BlockPerTransaction2Bytes(buffer,sizeof(blocksPerTransaction_t))==false)
+		if(this->header.blockPerTransaction_to_Bytes(buffer,sizeof(blocksPerTransaction_t))==false)
 			return 0;
 		buffer+=sizeof(blocksPerTransaction_t);
 
-		if(this->header.MaxSizeOfBlock2Bytes(buffer,sizeof(maxPacketLen_t))==false)
+		if(this->header.maxSizeOfBlock_to_Bytes(buffer,sizeof(maxPacketLen_t))==false)
 			return 0;
 		buffer+=sizeof(maxPacketLen_t);
 
-		if(this->header.ACKTimeout2Bytes(buffer,sizeof(ACKTimeout_t))==false)
+		if(this->header.ackTimeout_to_Bytes(buffer,sizeof(ACKTimeout_t))==false)
 			return 0;
 		buffer+=sizeof(ACKTimeout_t);
 
-		if(this->header.CRC2Bytes(buffer,sizeof(crc_t))==false)
+		if(this->header.crc_to_Bytes(buffer,sizeof(crc_t))==false)
 			return 0;
 		buffer+=sizeof(crc_t);
 
-		if(this->header.DataBufferSize2Bytes(buffer,sizeof(dataBufferSize_t))==false)
+		if(this->header.dataBufferSize_to_Bytes(buffer,sizeof(dataBufferSize_t))==false)
 			return 0;
 		buffer+=sizeof(dataBufferSize_t);
 
@@ -906,7 +886,7 @@ bool TransactionPacket::generateCRC(){
 }
 
 
-size_t TransactionPacket::size(){
+size_t TransactionPacket::getPacketSize(){
 	size_t bufferSize = (size_t)this->header.getDataBufferSize();
 	size_t payloadSize = sizeof(msgType_t) + sizeof(transactionID_t) +
 					+ sizeof(blocksPerTransaction_t) + sizeof(maxPacketLen_t)
@@ -951,14 +931,6 @@ blockTxRxPacket::~blockTxRxPacket() {
 	}
 }
 
-//blockTxRxPacket::blockTxRxPacket(const blockTxRxPacket &packet) {
-//	this->header = packet.header;
-//	dataBufferSize_t packetDataBufferSize = packet.header.getDataBufferSize();
-//	uint8_t* tempBuf =(uint8_t*)packet.getBuffer();
-//	if(buffer!=NULL && packetDataBufferSize>0){
-//		this->setBuffer(tempBuf,packetDataBufferSize);
-//	}
-//}
 
 uint8_t* blockTxRxPacket::getBuffer() {
 	return (uint8_t*)this->buffer;
@@ -985,20 +957,10 @@ bool blockTxRxPacket::setBuffer(uint8_t *in_buffer,dataBufferSize_t length) {
 
 
 
-void blockTxRxPacket::printBuffer(){
-	for(uint8_t iter=0;iter<this->getHeader().getDataBufferSize();iter++){
-		printf("[%d]=%d\n",iter,this->buffer[iter]);
-	}
-}
-
-
 blockHeader& blockTxRxPacket::getHeader(){
 	return header;
 }
 
-void blockTxRxPacket::setHeader(const blockHeader &header) {
-	this->header = header;
-}
 
 void blockTxRxPacket::setHeader(msgType_e msgType,frameNumber_t frameNumber,
 		continueBit_e continueBit,crc_t crc,dataBufferSize_t bufferSize) {
@@ -1009,38 +971,22 @@ void blockTxRxPacket::setHeader(msgType_e msgType,frameNumber_t frameNumber,
 	this->header.setDataBufferSize(bufferSize);
 }
 
-//blockTxRxPacket& blockTxRxPacket::operator =(const blockTxRxPacket &packet) {
-//	if(this!=&packet){
-//		this->header = packet.header;
-//		dataBufferSize_t packetDataBufferSize = packet.header.getDataBufferSize();
-//
-//		if(buffer!=NULL && packetDataBufferSize>0){
-//			this->buffer = new uint8_t[packetDataBufferSize];
-//			if(this->buffer!=NULL){
-//				for(uint8_t iter=0;iter<packetDataBufferSize;iter++){
-//					this->buffer[iter]= packet.buffer[iter];
-//				}
-//			}
-//		}
-//	}
-//	return *this;
-//}
 
 bool DD_PACKET::blockTxRxPacket::deserialize(uint8_t *ptr, size_t len) {
 
 	if(ptr!=NULL){
 		uint8_t* buffer = ptr;
 
-		this->header.bytes2MsgType(buffer,sizeof(msgType_t));
+		this->header.bytes_to_MsgType(buffer,sizeof(msgType_t));
 		buffer+=sizeof(msgType_t);
 
-		this->header.bytes2BlockMetadata(buffer,sizeof(blockMetaData_t));
+		this->header.bytes_to_BlockMetadata(buffer,sizeof(blockMetaData_t));
 		buffer+=sizeof(blockMetaData_t);
 
-		this->header.bytes2CRC(buffer,sizeof(crc_t));
+		this->header.bytes_to_CRC(buffer,sizeof(crc_t));
 		buffer+=sizeof(crc_t);
 
-		this->header.Bytes2DataBufferSize(buffer,sizeof(dataBufferSize_t));
+		this->header.Bytes_to_DataBufferSize(buffer,sizeof(dataBufferSize_t));
 		buffer+=sizeof(dataBufferSize_t);
 
 		size_t bufferSize = (size_t)this->header.getDataBufferSize();
@@ -1054,24 +1000,24 @@ size_t DD_PACKET::blockTxRxPacket::serialize(uint8_t *ptr, size_t len) {
 	if(ptr!=NULL){
 		uint8_t* buffer = ptr;
 
-		size_t payloadSize = this->size();
+		size_t payloadSize = this->getPacketSize();
 		if(len<payloadSize ){
 			return 0;
 		}
 
-		if(this->header.msgType2Bytes(buffer,sizeof(msgType_t))==false)
+		if(this->header.msgType_to_Bytes(buffer,sizeof(msgType_t))==false)
 			return 0;
 		buffer+=sizeof(msgType_t);
 
-		if(this->header.blockMetaData2Bytes(buffer,sizeof(blockMetaData_t))==false)
+		if(this->header.blockMetaData_to_Bytes(buffer,sizeof(blockMetaData_t))==false)
 			return 0;
 		buffer+=sizeof(blockMetaData_t);
 
-		if(this->header.CRC2Bytes(buffer,sizeof(crc_t))==false)
+		if(this->header.crc_to_Bytes(buffer,sizeof(crc_t))==false)
 			return 0;
 		buffer+=sizeof(crc_t);
 
-		if(this->header.DataBufferSize2Bytes(buffer,sizeof(dataBufferSize_t))==false)
+		if(this->header.DataBufferSize_to_Bytes(buffer,sizeof(dataBufferSize_t))==false)
 			return 0;
 		buffer+=sizeof(dataBufferSize_t);
 
@@ -1101,14 +1047,14 @@ bool blockTxRxPacket::generateCRC(){
 }
 
 
-size_t blockTxRxPacket::size(){
+size_t blockTxRxPacket::getPacketSize(){
 	size_t bufferSize = (size_t)this->header.getDataBufferSize();
 	size_t payloadSize = sizeof(msgType_t) + sizeof(blockMetaData_t)
 					+ sizeof(crc_t)+ sizeof(dataBufferSize_t) + bufferSize;
 	return payloadSize;
 }
 
-size_t blockTxRxPacket::headerSize(){
+size_t blockTxRxPacket::getHeaderSize(){
 	return ( sizeof(msgType_t) + sizeof(blockMetaData_t)
 			+ sizeof(crc_t)+ sizeof(dataBufferSize_t));
 }

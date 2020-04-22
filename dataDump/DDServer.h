@@ -17,7 +17,7 @@ private:
 
 
 public:
-	DDServer(string name,DD_send_cb_t sendcb,DD_receive_cb_t recvcb,
+	DDServer(string name,timer_loop_t& timerloop,DD_send_cb_t sendcb,DD_receive_cb_t recvcb,
 			DD_PACKET::transactionID_t transactionID,
 			DD_PACKET::blocksPerTransaction_t blocksPerTransaction,
 			DD_PACKET::maxPacketLen_t maxPacketlen,
@@ -29,8 +29,8 @@ public:
 	bool startServer();
 	bool stopServer();
 
-	friend void DDServerStateTimerCallback(void* arg);
-	friend void DDServerUpdateTimerCallback(void* arg);
+	//friend void DDServerStateTimerCallback(void* arg);
+	//friend void DDServerUpdateTimerCallback(void* arg);
 
 };
 

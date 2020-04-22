@@ -11,15 +11,11 @@
 using namespace DD_PACKET;
 
 
-
-
-
-
 /*
  *
  *
  */
-DataDump::DataDump(mode_e type,string name,
+DataDump::DataDump(mode_e type,string name,timer_loop_t& timer_loop,
 		DD_send_cb_t sendcb,DD_receive_cb_t recvcb,DD_PACKET::transactionID_t transactionID,
 		DD_PACKET::blocksPerTransaction_t blocksPerTransaction,
 		DD_PACKET::maxPacketLen_t maxPacketlen,
@@ -40,6 +36,7 @@ DataDump::DataDump(mode_e type,string name,
 		currentState(fsm_state_e::IDLE),
 		nextState(fsm_state_e::IDLE)
 {
+	try{
 		if(mode==DataDump::mode_e::CLIENT){
 			clientConfig.setTransactionId(transactionID);
 			clientConfig.setBlocksPerTransaction(blocksPerTransaction);
@@ -52,25 +49,34 @@ DataDump::DataDump(mode_e type,string name,
 			serverConfig.setMaxPacketLength(maxPacketlen);
 			serverConfig.setAckTimeout(ackTimeout);
 		}
+
 		//Create oneshot timer.
-		stateTransitionTimerHandle = new btimer(string(name+"ST"),btimer::ONE_SHOT);
+		stateTransitionTimerHandle = new btimer(string(name+"ST"),timer_loop,btimer::ONE_SHOT);
 		if(stateTransitionTimerHandle==NULL){
 			throw EMU_ERR_OUT_OF_MEMORY;
 		}
+	}
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+	}
 }
 
 DataDump::~DataDump() {
-
 	//Stop if timer is still running
 	stateTransitionTimerHandle->stop();
-
 }
 
 
 
 
 bool DataDump::send(TransactionPacket& packet, uint8_t length) {
+
 	bool ret = false;
+
+	try{
 		if(length >maxPacketSize)
 			return false;
 
@@ -84,26 +90,30 @@ bool DataDump::send(TransactionPacket& packet, uint8_t length) {
 		}
 
 		return ret;
+	}
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+		return false;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+		return false;
+	}
 
 }
 
 
 
 bool DataDump::send(blockTxRxPacket& packet, uint8_t length) {
+
 	bool ret = false;
 
+	try{
 		if(length >maxPacketSize)
 			return false;
 
 		//serialize the packet
 		uint8_t buffer[maxPacketSize]={0};
-
-		if(packet.getBuffer()!=NULL)
-		{
-			uint8_t* tempBuf =packet.getBuffer();
-			size_t tempSize = packet.getHeader().getDataBufferSize();
-		}
-
 
 		uint8_t len =packet.serialize(buffer,maxPacketSize);
 
@@ -112,6 +122,15 @@ bool DataDump::send(blockTxRxPacket& packet, uint8_t length) {
 			ret = sendCB(buffer,len);
 		}
 		return ret;
+	}
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+		return false;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+		return false;
+	}
 
 }
 
@@ -119,10 +138,11 @@ bool DataDump::send(blockTxRxPacket& packet, uint8_t length) {
 
 
 size_t DataDump::receive(TransactionPacket& packet,msgType_e msgType) {
+
 	size_t len =0;
 	uint8_t recvByteBuffer[maxPacketSize]={0};
 
-
+	try{
 		if(this->recvCB!=NULL){
 			//receive data using recvCB. RecvCB is expected to be non-blocking call.
 			 len=recvCB(recvByteBuffer,maxPacketSize);
@@ -145,6 +165,15 @@ size_t DataDump::receive(TransactionPacket& packet,msgType_e msgType) {
 		}
 
 		return len;
+	}
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+		return 0;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+		return 0;
+	}
 
 }
 
@@ -153,6 +182,7 @@ size_t DataDump::receive(blockTxRxPacket& packet,msgType_e msgType) {
 	size_t len =0;
 	uint8_t recvByteBuffer[maxPacketSize]={0};
 
+	try{
 		if(recvCB!=NULL){
 			//receive data using recvCB. RecvCB is expected to be non-blocking call.
 			 len=recvCB(recvByteBuffer,maxPacketSize);
@@ -172,6 +202,15 @@ size_t DataDump::receive(blockTxRxPacket& packet,msgType_e msgType) {
 		}
 
 		return len;
+	}
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+		return 0;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+		return 0;
+	}
 
 }
 
@@ -179,11 +218,19 @@ size_t DataDump::receive(blockTxRxPacket& packet,msgType_e msgType) {
 
 bool DataDump::startStateTransitionTimer(ACKTimeout_t timeout) {
 
-		if(this->stateTransitionTimerHandle->start(timeout*100)==false){
-			cout<<"fail to start timer"<<endl;
-			return false;
-		}
-		return true;
+	bool ret = false;
+	try{
+		ret = this->stateTransitionTimerHandle->start(timeout*100);
+		return ret;
+	}
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+		return false;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+		return false;
+	}
 
 }
 
@@ -191,50 +238,80 @@ bool DataDump::startStateTransitionTimer(ACKTimeout_t timeout) {
 
 bool DataDump::stopStateTransitionTimer() {
 
-		if(this->stateTransitionTimerHandle->stop()==false){
-				return false;
+	bool ret = false;
+	try{
+		ret = this->stateTransitionTimerHandle->stop();
+		return ret;
+	}
+
+	catch(std::exception& e){
+		errorlog<<e.what()<<endl;
+		return false;
+	}
+	catch(emu_err_t& e){
+		errorlog<<endl;
+		return false;
+	}
+
+}
+
+
+void DataDump::setCurrentFSMState(fsm_state_e state) noexcept{
+
+	bool ret = false;
+	//===== Critical section <
+	std::unique_lock<std::timed_mutex> lck (cur_mutex,std::defer_lock);
+	if(lck.try_lock_for(std::chrono::milliseconds(1))){
+		currentState = state;
+		ret = true;
+	}
+	//===== Critical section >
+	return ;
+}
+
+
+void DataDump::setNextFSMState(fsm_state_e state) noexcept{
+
+	bool ret = false;
+	//===== Critical section <
+	{
+		std::unique_lock<std::timed_mutex> lck (nxt_mutex,std::defer_lock);
+		if(lck.try_lock_for(std::chrono::milliseconds(1))){
+			nextState = state;
+			ret = true;
 		}
-		return true;
-
-}
-
-
-void DataDump::setCurrentFSMState(fsm_state_e state){
-	//===== Critical section <
-	std::lock_guard<std::mutex> lck (cur_mutex);
-	currentState = state;
-	//===== Critical section >
-}
-
-
-void DataDump::setNextFSMState(fsm_state_e state){
-	//===== Critical section <
-	{
-		std::lock_guard<std::mutex> lck (nxt_mutex);
-		nextState = state;
 	}
 	//===== Critical section >
+
+	return ;
 }
 
 
-DataDump::fsm_state_e DataDump::getCurrentFSMState(){
-	fsm_state_e temp;
+DataDump::fsm_state_e DataDump::getCurrentFSMState() noexcept{
+
+	fsm_state_e temp = fsm_state_e::TERMINATE;
+
 	//===== Critical section <
 	{
-		std::lock_guard<std::mutex> lck (cur_mutex);
-		temp = currentState;
+		std::unique_lock<std::timed_mutex> lck (cur_mutex,std::defer_lock);
+		if(lck.try_lock_for(std::chrono::milliseconds(1))){
+			temp = currentState;
+		}
 	}
+
 	//===== Critical section >
 	return temp;
 }
 
 
-DataDump::fsm_state_e DataDump::getNextFSMState(){
-	fsm_state_e temp;
+DataDump::fsm_state_e DataDump::getNextFSMState() noexcept{
+	fsm_state_e temp = fsm_state_e::TERMINATE;
 	//===== Critical section <
 	{
-		std::lock_guard<std::mutex> lck (nxt_mutex);
-		temp = nextState;
+		std::unique_lock<std::timed_mutex> lck (nxt_mutex,std::defer_lock);
+		if(lck.try_lock_for(std::chrono::milliseconds(1))){
+			temp = nextState;
+		}
 	}
 	//===== Critical section >
 	return temp;

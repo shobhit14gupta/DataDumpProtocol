@@ -68,9 +68,9 @@ class TranscationHeader{
 	private:
 		msgType_e msgType;
 		transactionID_t transactionID;
-		blocksPerTransaction_t blocksPerTransaction;
+		blocksPerTransaction_t maxBlocksPerTransaction;
 		maxPacketLen_t maxPacketlen;
-		ACKTimeout_t ackTimeout;
+		ACKTimeout_t maxACKTimeout;
 		crc_t crc;
 		dataBufferSize_t dataBufferSize;
 	public:
@@ -80,17 +80,17 @@ class TranscationHeader{
 		TranscationHeader(msgType_e msgType,transactionID_t transactionID,crc_t crc,dataBufferSize_t dataBufferSize,
 					blocksPerTransaction_t blocksPerTransaction,maxPacketLen_t maxSizeofBlock,
 					ACKTimeout_t ACKTimeout);
-		TranscationHeader(const TranscationHeader& packet);
+		TranscationHeader(const TranscationHeader& packet)=delete;
 		~TranscationHeader();
 
 		//operator overloading
-		TranscationHeader& operator=(const TranscationHeader& packet);
+		TranscationHeader& operator=(const TranscationHeader& packet)=delete;
 
 
 		//getters
 		ACKTimeout_t getAckTimeout() const;
 		blocksPerTransaction_t getBlocksPerTransaction() const ;
-		maxPacketLen_t getMaxPacketLength() const ;
+		maxPacketLen_t getPacketLength() const ;
 		msgType_e getMsgType() const ;
 		transactionID_t getTransactionId() const ;
 		crc_t getCrc() const ;
@@ -107,22 +107,22 @@ class TranscationHeader{
 
 
 		//ByteArray to type conversion
-		bool bytes2MsgType(const uint8_t* ptr,size_t len);
-		bool bytes2TransactionId(const uint8_t* ptr,size_t len);
-		bool byte2BlockPerTransaction(const uint8_t* ptr,size_t len);
-		bool byte2MaxSizeOfBlock(const uint8_t* ptr,size_t len);
-		bool byte2ACKTimeout(const uint8_t* ptr,size_t len);
-		bool byte2CRC(const uint8_t* ptr,size_t len);
-		bool byte2DataBufferSize(const uint8_t* ptr,size_t len);
+		bool bytes_to_MsgType(const uint8_t* ptr,size_t len);
+		bool bytes_to_TransactionId(const uint8_t* ptr,size_t len);
+		bool byte_to_BlockPerTransaction(const uint8_t* ptr,size_t len);
+		bool byte_to_MaxSizeOfBlock(const uint8_t* ptr,size_t len);
+		bool byte_to_ACKTimeout(const uint8_t* ptr,size_t len);
+		bool byte_to_CRC(const uint8_t* ptr,size_t len);
+		bool byte_to_DataBufferSize(const uint8_t* ptr,size_t len);
 
 		//type to byteArray conversion
-		bool msgType2Bytes(uint8_t* ptr,size_t len);
-		bool TransactionId2Bytes(uint8_t* ptr,size_t len);
-		bool BlockPerTransaction2Bytes(uint8_t* ptr,size_t len);
-		bool MaxSizeOfBlock2Bytes(uint8_t* ptr,size_t len);
-		bool ACKTimeout2Bytes(uint8_t* ptr,size_t len);
-		bool CRC2Bytes(uint8_t* ptr,size_t len);
-		bool DataBufferSize2Bytes(uint8_t* ptr,size_t len);
+		bool msgType_to_Bytes(uint8_t* ptr,size_t len);
+		bool transactionID_to_Bytes(uint8_t* ptr,size_t len);
+		bool blockPerTransaction_to_Bytes(uint8_t* ptr,size_t len);
+		bool maxSizeOfBlock_to_Bytes(uint8_t* ptr,size_t len);
+		bool ackTimeout_to_Bytes(uint8_t* ptr,size_t len);
+		bool crc_to_Bytes(uint8_t* ptr,size_t len);
+		bool dataBufferSize_to_Bytes(uint8_t* ptr,size_t len);
 
 
 		void printAll();
@@ -138,14 +138,12 @@ private:
 	crc_t crc;
 	dataBufferSize_t dataBufferSize;
 public:
-	//constructors and destructors
+	blockHeader(const blockHeader& blockHeader)=delete;
+	blockHeader& operator=(const blockHeader& packet)=delete;
+
 	blockHeader();
 	blockHeader(msgType_e msgType,frameNumber_t frameNumber,continueBit_e continueBit,crc_t crc,dataBufferSize_t dataBufferSize);
-	blockHeader(const blockHeader& blockHeader);
 	~blockHeader();
-
-	//operator overloading
-	blockHeader& operator=(const blockHeader& packet);
 
 	//getters
 	continueBit_e getContinueBit() const ;
@@ -164,16 +162,16 @@ public:
 	void setCrc(crc_t crc) ;
 
 	//ByteArray to type conversion
-	bool bytes2MsgType(const uint8_t* ptr,size_t len);
-	bool bytes2BlockMetadata(const uint8_t* ptr,size_t len);
-	bool bytes2CRC(const uint8_t* ptr,size_t len);
-	bool Bytes2DataBufferSize(const uint8_t* ptr,size_t len);
+	bool bytes_to_MsgType(const uint8_t* ptr,size_t len);
+	bool bytes_to_BlockMetadata(const uint8_t* ptr,size_t len);
+	bool bytes_to_CRC(const uint8_t* ptr,size_t len);
+	bool Bytes_to_DataBufferSize(const uint8_t* ptr,size_t len);
 
 	//type to byteArray conversion
-	bool msgType2Bytes(uint8_t* ptr,size_t len);
-	bool blockMetaData2Bytes(uint8_t* ptr,size_t len);
-	bool CRC2Bytes(uint8_t* ptr,size_t len);
-	bool DataBufferSize2Bytes(uint8_t* ptr,size_t len);
+	bool msgType_to_Bytes(uint8_t* ptr,size_t len);
+	bool blockMetaData_to_Bytes(uint8_t* ptr,size_t len);
+	bool crc_to_Bytes(uint8_t* ptr,size_t len);
+	bool DataBufferSize_to_Bytes(uint8_t* ptr,size_t len);
 
 	void printAll();
 
@@ -188,40 +186,32 @@ private:
 	TranscationHeader header;
 	uint8_t* buffer;
 public:
+	TransactionPacket(const TransactionPacket& packet)=delete;
+	TransactionPacket& operator=(const TransactionPacket& packet)=delete;
 
-	//constructors and destructors
 	TransactionPacket();
 	TransactionPacket(msgType_e msgType,transactionID_t transactionID=0,crc_t crc=0,
 					blocksPerTransaction_t blocksPerTransaction=0,maxPacketLen_t maxSizeofBlock=0,
 					ACKTimeout_t ACKTimeout=0,uint8_t* buffer=NULL,dataBufferSize_t bufferSize=0);
 	~TransactionPacket();
-	TransactionPacket(const TransactionPacket& packet)=delete;
-
-	//operator overloading
-	TransactionPacket& operator=(const TransactionPacket& packet)=delete;
 
 	//getters
 	uint8_t* getBuffer();
 	TranscationHeader& getHeader();
+	size_t getPacketSize();
 
 	//setters
 	bool setBuffer(uint8_t *buffer,dataBufferSize_t length);
-	void setHeader(const TranscationHeader &header);
 	void setHeader(msgType_e msgType,transactionID_t transactionID,crc_t crc,dataBufferSize_t dataBufferSize,
 					blocksPerTransaction_t blocksPerTransaction,maxPacketLen_t maxSizeofBlock,
 					ACKTimeout_t ACKTimeout);
 
-	//bytes to packet
+	//Serialization/ deserialization
 	bool deserialize(uint8_t* buffer,size_t len);
-
-	//packets to bytes
 	size_t serialize(uint8_t* ptr,size_t len);
 
 	//generate crc
 	bool generateCRC();
-
-	//size of packet
-	size_t size();
 
 	//print all atributes
 	void printAll();
@@ -234,42 +224,34 @@ private:
 	blockHeader header;
 	uint8_t* buffer;
 public:
-	//constructors and destructors
+	blockTxRxPacket(const blockTxRxPacket& packet) = delete;
+	blockTxRxPacket& operator=(const blockTxRxPacket& packet)= delete;
+
 	blockTxRxPacket();
 	blockTxRxPacket(msgType_e msgType,frameNumber_t frameNumber,continueBit_e continueBit,crc_t crc,
 			uint8_t* buffer,dataBufferSize_t bufferSize);
 	~blockTxRxPacket();
-	blockTxRxPacket(const blockTxRxPacket& packet) = delete;
-
-	//operator overloading
-	blockTxRxPacket& operator=(const blockTxRxPacket& packet)= delete;
 
 	//getters
 	uint8_t* getBuffer();
 	blockHeader& getHeader();
+	size_t getPacketSize();
+	static size_t getHeaderSize();
 
 	//setters
 	bool setBuffer(uint8_t *buffer,dataBufferSize_t length);
-	void printBuffer();
-	void setHeader(const blockHeader &header);
-	void setHeader(msgType_e msgType,frameNumber_t frameNumber,continueBit_e continueBit,crc_t crc,dataBufferSize_t bufferSize);
+	void setHeader(msgType_e msgType,frameNumber_t frameNumber,continueBit_e continueBit,crc_t crc,
+			dataBufferSize_t bufferSize);
 
-	//bytes to packet
+	//Serialization/ deserialization
 	bool deserialize(uint8_t* buffer,size_t len);
-
-	//packets to bytes
 	size_t serialize(uint8_t* ptr,size_t len);
 
 	//generate crc
 	bool generateCRC();
 
-	//size of packet
-	size_t size();
-
 	//print all atributes
 	void printAll();
-
-	static size_t headerSize();
 };
 
 }
